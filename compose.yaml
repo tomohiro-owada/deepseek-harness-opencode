@@ -1,0 +1,86 @@
+name: deepseek-harness
+
+services:
+  harness:
+    build:
+      context: .
+      args:
+        DSH_VERSION: 0.1.5-rc.2
+    depends_on:
+      egress-proxy:
+        condition: service_started
+    environment:
+      DSH_HOME: /data/dsh
+      DSH_TELEMETRY_DISABLED: "1"
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
+      HTTP_PROXY: http://egress-proxy:3128
+      HTTPS_PROXY: http://egress-proxy:3128
+      NO_PROXY: localhost,127.0.0.1,::1,egress-proxy
+    volumes:
+      - harness-data:/data/dsh
+      - ./workspace:/workspace
+      # The Web directory picker creates workspaces below the process home.
+      # Map that location to the same durable, host-visible workspace root.
+      - ./workspace:/home/node
+    networks:
+      - harness-internal
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777,size=1g
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    restart: unless-stopped
+
+  ui-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui-proxy
+    depends_on:
+      harness:
+        condition: service_started
+    ports:
+      - "127.0.0.1:3080:8080"
+    networks:
+      - harness-internal
+      - harness-ingress
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 32
+    restart: unless-stopped
+
+  egress-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    networks:
+      - harness-internal
+      - harness-egress
+    read_only: true
+    tmpfs:
+      - /run:mode=755,size=16m
+      - /var/spool/squid:uid=31,gid=31,mode=755,size=64m
+    cap_drop:
+      - ALL
+    cap_add:
+      # Squid needs these only to drop from its bootstrap user to `squid`.
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    restart: unless-stopped
+
+volumes:
+  harness-data:
+
+networks:
+  harness-internal:
+    internal: true
+  harness-egress:
+  harness-ingress:

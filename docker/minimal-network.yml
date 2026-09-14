@@ -1,0 +1,41 @@
+# This overlay is applied after the shipped Web profile.  Config values replace
+# an entire row, so the webserver settings repeat the upstream defaults.
+- id: webserver
+  config:
+    host: 127.0.0.1
+    port: 3080
+    compression: gzip
+    compressionLevel: 1
+    compressionThresholdBytes: 1024
+
+# Prevent voluntary telemetry or session-log contribution.  The compose file
+# also sets DSH_TELEMETRY_DISABLED as a process-level safeguard.
+- id: session-log-deepseek
+  disabled: true
+
+- id: session-telemetry-otel
+  disabled: true
+
+# Client-side HMR is a development-only feature and requires Node internals;
+# the production container has no watcher that can use it.
+- id: client-hmr
+  disabled: true
+
+# The built-in pi-ai catalog owns OpenCode Go's endpoint and model metadata.
+- id: llm-pi-ai
+  config:
+    providers:
+      opencode-go:
+        apiKeyEnv: OPENCODE_API_KEY
+
+- id: agent-default-model
+  config:
+    provider: opencode-go
+    model: muse-spark-1.3-contributor
+
+# New sessions start with the shipped one-tool preset, which has no Web search
+# or fetch tool.  The egress proxy remains the enforcement point if a user
+# intentionally selects a broader preset later.
+- id: agent-presets
+  config:
+    default: minimal
